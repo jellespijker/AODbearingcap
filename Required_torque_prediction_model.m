@@ -25,35 +25,38 @@ close all
 disp('----------------------------------------------------------------------------')
 disp('Choose a certain soil type if the properties are not known, else type "user"')
 disp('----------------------------------------------------------------------------')
+msgbox('This model is currently only valid for cohesion containing soils in undrained state',...
+    'Model disclaimer','warn')
 
 % User input 
-soil = input('Soil Type? (silt/clay/sand):','s')
+soil = input('Soil Type? (silt/loose clay/packed clay/user):','s')
 
     if strcmpi(soil,'user') == 1 
         c       = input('Cohesion? [Pa] :')
         rho_ins = input('In-situ bottom density? [kg/m^3] :')
         phi_deg = input('Internal friction angle? [deg] :')
         K0      = input('Coefficient of lateral earth pressure at rest? [-] :')
+        delta   = input('Static coefficient of friction? [-] :')
     elseif strcmpi(soil,'silt') == 1
         c       = 3e3;                      % Cohesion                      [Pa]
         rho_ins = 1300;                     % In-situ bottom density        [kg/m^3]
         phi_deg = 0;                        % Internal friction angle       [deg]
-        K0      = 0.47;                     % Coeff of lateral earth press  [-]
-    elseif strcmpi(soil,'clay') == 1  
+        K0      = 0.54;                     % Coeff of lateral earth press  [-]
+        delta   = 0;                        % External friction angle       []
+    elseif strcmpi(soil,'loose clay') == 1  
         c       = 5e3;                      % Cohesion                      [Pa]
         rho_ins = 1400;                     % In-situ bottom density        [kg/m^3]
         phi_deg = 0;                        % Internal friction angle       [deg]
-        K0      = 0.84;                     % Coeff of lateral earth press  [-]                     
-    elseif strcmpi(soil,'sand') == 1
-        c       = 0;                        % Cohesion                      [Pa]
-        rho_ins = 2000;                     % In-situ bottom density        [kg/m^3]
-        phi_deg = 35;                       % Internal friction angle       [deg]
-        phi     = phi_deg*(pi/180);         % Internal friction angle       [rad]
-        K0      = 1-sin(phi);               % Coeff of lateral earth press  [-]
+        K0      = 0.;                     % Coeff of lateral earth press  [-]      
+        delta   = 0;                        % External friction angle       []
+    elseif strcmpi(soil,'packed clay') == 1
+        c       = 10E3;                     % Cohesion                      [Pa]
+        rho_ins = 1800;                     % In-situ bottom density        [kg/m^3]
+        phi_deg = 0;                        % Internal friction angle       [deg]
+        K0      = 1;                        % Coeff of lateral earth press  [-]
+        delta   = 0;                        % External friction angle       []
     else
-        disp('--------------------------------------------------------------------------')
-        disp('Current input cannot be used! Please re-run script and enter a valid input')
-        disp('--------------------------------------------------------------------------')
+        msgbox('Current input cannot be used! Please re-run script and enter a valid input!','Error','error')
         return
     end 
     
@@ -62,11 +65,11 @@ soil = input('Soil Type? (silt/clay/sand):','s')
 %c           = 3e3;                          % Cohesion                      [Pa]
 %phi_deg     = 35;                           % Internal friction angle       [deg]
 %rho_ins     = 1300;                         % In-situ bottom density        [kg/m^3]
-%K0          = 0.5;                          % Coeff of lateral earth press  [-]    
+%K0          = 0.5;                          % Coeff of lateral earth press  [-]
+%delta       = tan(phi);                     % Steel-soil friction factor    [-]
 rho_s       = 2650;                         % Soil density                  [kg/m^3]
 rho_air     = 1.225;                        % Air density at sealevel T=15  [kg/m^3]
 phi         = phi_deg*(pi/180);             % Internal friction angle       [rad]
-delta       = tan(phi);                     % Steel-soil friction factor    [-]
 T_f         = 15;                           % Water temperature             [C]
 g           = 9.81;                         % Gravitational constant        [m^2/s]
                   
@@ -115,7 +118,7 @@ A_helix     = L_helix_mid*h_vane;          % Total surface area             [m^2
 
 %% Crawler parameters 
 
-W_dry       = 4100;                        % Dry weight                     [kg]
+W_dry       = 5100;                        % Dry weight                     [kg]
 F_dry       = W_dry*g;                     % Dry weight grav. force         [N]
 F_wet       = (F_dry - F_buoy_f)/2;        % Submerged weight per screw     [N]
 V           = 0.4;                         % Velocity                       [m/s]
@@ -154,31 +157,36 @@ S_gamma(1)      = 1-0.3*((2*B_screw(1))/L_screw);           % Shape factor Brinc
 % Allowed load according to Brinch Hansen                                                       [N/m^2]
 p(1)            = (S_c(1)*c*N_c)+(S_q(1)*q(1)*N_q)+(S_gamma(1)*0.5*gamma*2*B_screw(1)*N_gamma);
 
+sigma_v(1)      = (F_wet - F_buoy_soil)/(B_screw(1)*L_screw);
+
 A_req(1)        = (F_wet - F_buoy_soil(1))/p(1);            % required surface area for equilibrium [m^2]
 
 % Required foundation width "B" as function of constant length L_screw                          [m]
 B_screw_req(1)  = A_req(1)/L_screw;
 
 % Convergence criterium                                                                         [-]
-epsilon         = 1E-6;                                     
+epsilon         = 1E-5;                                     
 
 % Iteratively solving the dependency between p,q and D using the Brinch Hansen model
-for i = 1:1000
+for i = 1:1:1000
+    
     % Calculate next "sink-angle"                                                               [rad]
     theta(i+1) = asin((0.5*B_screw_req(i))/r_screw);
     
         % Model is only valid if the sink angle remains between 0-90 degrees (D = r_screw)
         if rad2deg(theta(i+1)) >= 90 
-            disp('----------------------------------------------------')
-            disp('WARNING, sink angle too large! Calculation has ended')
-            disp('----------------------------------------------------')
+            msgbox('WARNING, sink angle too large! Calculation has ended!','Error','error')
                 return
         elseif rad2deg(theta(i+1)) <= 0
-            disp('---------------------------------------------------------')
-            disp('WARNING, no sinkage seems to occur! Calculation has ended')
-            disp('---------------------------------------------------------')
+            msgbox('WARNING, no sinkage seems to occur! Calculation has ended','Error','error')
                 return
         end 
+        
+    % Calculate next screw volume in soil                                   [m^3]
+    V_soil(i+1)  = 0.5*r_screw^2*(2*theta(i+1)-sin(2*theta(i+1)))*L_screw;
+    
+    % Calculate next extra buoyancy force due to sinkage                    [N]
+    F_buoy_soil(i+1) = V_soil(i+1)*(rho_ins-rho_f)*g;    
     
     % Calculate next depth as function of required foundation width B_screw_req: [m]
     D(i+1) = r_screw - r_screw*cos(theta(i+1));
@@ -192,13 +200,17 @@ for i = 1:1000
     S_gamma(i+1) = 1-0.3*(B_screw_req(i)/L_screw);                          %[-]
     
     % Calculate next maximum allowed load according to Brinch Hansen 
-    p(i+1)       = (S_c(i+1)*c*N_c) + (S_q(i+1)*q(i+1)*N_q) + (S_gamma(i+1)*0.5*gamma*B_screw_req(i)*N_gamma);
+    p(i+1)       = (S_c(i+1)*c*N_c) + ...
+        (S_q(i+1)*q(i+1)*N_q) + ...
+        (S_gamma(i+1)*0.5*gamma*B_screw_req(i)*N_gamma);
+
+    % Calculate next vertical pressure to compare with allowed bearing capacity "p"
+    sigma_v(i+1) = (F_wet - F_buoy_soil(i+1))/(B_screw_req(i)*L_screw);
     
-    % Calculate next screw volume in soil                                   [m^3]
-    V_soil(i+1)  = 0.5*r_screw^2*(2*theta(i+1)-sin(2*theta(i+1)))*L_screw;
-    
-    % Calculate next extra buoyancy force due to sinkage                    [N]
-    F_buoy_soil(i+1) = V_soil(i+1)*(rho_ins-rho_f)*g;
+        % Convergence criterium
+        if abs(p(i+1) - sigma_v(i+1)) < epsilon
+            break
+        end
     
     % Calculate next required surface area for equilibrium                  [m^2]
     A_req(i+1)   = (F_wet - F_buoy_soil(i+1))/p(i+1); 
@@ -206,22 +218,15 @@ for i = 1:1000
     % Calculate next required foundation width "B_screw_req"                [m]
     B_screw_req(i+1) = A_req(i+1)/L_screw; 
     
-        % Convergence criterium                                             [-]
-        if abs(D(i+1) - D(i)) < epsilon
-            break
-        end
 end
 
 %% Soil Friction Forces on Archimedes screw
 
-% Maximum vertical TOTAL soil stress using the bearing capacity equilibrium [N/m^2]
-sigma_v       = p(end);
-
 % Maximum horizontal TOTAL soil stress assuming soil is at rest             [N/m^2]
-sigma_h       = sigma_v*K0;
+sigma_h       = sigma_v(end)*K0;
 
 % Total skin friction force on cylinder                                     [N]
-F_fric_cyl    = (F_dry - F_)*delta;  
+F_fric_cyl    = (F_wet - F_buoy_soil(end))*delta;  
 
 % Skin friction force cylinder in rotational direction                      [N]
 F_fric_cyl_x  = F_fric_cyl*cos(alpha);  
@@ -267,13 +272,11 @@ T_fric_tot     = T_fric_cyl + T_fric_helix;
 T_del   = 1770;                                                              
 
     if T_del <= T_fric_tot || T_fric_tot == 0
-        disp('--------------------------------------------------------------')
-        disp('Not enough torque available to overcome frictional resistance!')
-        disp('--------------------------------------------------------------')
+        msgbox('Not enough torque available to overcome frictional resistance!',...
+            'Crawler motion prediction','error')
     else 
-        disp('-------------------------------------------------------')
-        disp('Torque is sufficient to overcome frictional resistance!')
-        disp('-------------------------------------------------------')
+        msgbox('Torque is sufficient to overcome frictional resistance!',...
+            'Crawler motion prediction')
     end 
     
 % Calculate the force in rotational direction due to delivered torque       [N]
