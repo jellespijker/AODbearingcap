@@ -21,6 +21,7 @@ clc
 clear all
 close all
 
+
 %% User Input 
 disp('----------------------------------------------------------------------------')
 disp('Choose a certain soil type if the properties are not known, else type "user"')
