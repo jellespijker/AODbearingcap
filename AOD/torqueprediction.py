@@ -1,33 +1,24 @@
 import matplotlib.pyplot as plt
 from AOD.Material import *
 from AOD.Model import *
-
 from AOD.Bot import *
+import warnings
 
 
 def main():
-    # Define the fluid en solid layers
-    air = Air()
-    water = Water()
-    silt = Silt()
-    layers = {'Air': air, 'Fluid': water, 'Soil': silt}
-
-    # define the world
-    world = World(T=15.0 * ureg['degC'], layers=layers)
-
-    # define the dredgebot
-    dredgebot = Bot(no_of_screws=2)
-
-    # define the model
-    model = Model(world=world, bot=dredgebot)
-
-    r = 1.
-    D = np.arange(start=0, stop=r, step=0.1)
-    theta = np.arccos((r - D) / r)
-    B = 2 * r * np.sin(theta/2)
-
+    warnings.filterwarnings('ignore')
+    model = Model()
+    model.world.Layers['Soil'] = River_clay()
+    [p_allow, p_load, depth, sink_depth, load] = model.solve_sinkdepth()
+    torque_req = model.solve_torque(depth=sink_depth, load=load)
+    print(torque_req.to('N*m'))
+    print(sink_depth.to('mm'))
+    print(load)
     plt.figure()
-    plt.plot(D, B)
+    plt.grid(True)
+    plt.plot(load.item(0), -sink_depth.item(0), 'X')
+    plt.plot(p_allow, -depth)
+    plt.plot(p_load, -depth)
     plt.show()
 
 

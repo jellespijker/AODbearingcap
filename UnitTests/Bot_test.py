@@ -6,7 +6,6 @@ import scipy.optimize
 from AOD.Material import *
 from AOD.Bot import *
 from AOD.Unit import *
-from AOD.Model import *
 
 
 class TestCylinderMethods(unittest.TestCase):
@@ -84,20 +83,3 @@ class TestBotMethodes(unittest.TestCase):
         bot.depth = depth
         force = bot.F(forcetype=ForceType.Wet, layers=layers)
         np.testing.assert_array_equal(np.round(fw, 2), np.round(force, 2))
-
-class TestModelMethods(unittest.TestCase):
-    def test_solve(self):
-        model = Model()
-        #model.bot.weight_dry = 3.5e3 * ureg['kg']
-        model.world.Layers['Soil'] = Packed_clay()
-        depth = np.arange(start=0, stop=model.bot.Screw.cylinder.d.magnitude * 10, step=1.e-3) * ureg['m']
-        [p_allow, p_load, sink_depth, load] = model.solve(depth=depth)
-        print(sink_depth)
-        print(load)
-        plt.figure()
-        plt.grid(True)
-        plt.plot(sink_depth, load, '*')
-        plt.plot(depth, p_allow)
-        plt.plot(depth, p_load)
-        plt.show()
-

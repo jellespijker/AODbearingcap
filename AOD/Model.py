@@ -84,28 +84,44 @@ class Model(object):
         if bot is not None:
             self.bot = bot
 
-    def solve(self, depth):
-        # inital guess
-
+    def solve_sinkdepth(self, depth=None, resolution=None):
+        max_sink_depth = 10. * ureg['m']
+        if resolution is None:
+            resolution = 1.e-3 * ureg['m']
+        if depth is None:
+            depth = np.arange(start=0., stop=max_sink_depth.magnitude, step=resolution.magnitude) * ureg['m']
         self.bot.depth = depth
         [B_acc, d_acc] = self.bot.Screw.cylinder.B_acc(depth=depth)
         force = self.bot.F(forcetype=ForceType.Wet, layers=self.world.Layers)
+        force /= self.bot.no_screw
         p_load = force / (B_acc * self.bot.Screw.cylinder.l)
         gamma = self.world.Layers['Soil'].gamma(self.world.Layers)
         q = gamma * depth
         p_allow = self.world.Layers['Soil'].p_allow(q, self.world.Layers, B_acc, self.bot.Screw.cylinder.l)
 
         p_eps = np.sign(p_allow - p_load)
+        sink_depth = -1. * ureg['m']
+        load = -1. * ureg['Pa']
         for i in range(2, len(depth)):
             if p_eps[i] * p_eps[i - 1] == -1:
-                sink_depth = depth[i]
+                sink_depth = round(depth[i], 3)
                 load = p_load[i]
+                if i < int(max_sink_depth.magnitude / (2 * resolution.magnitude)):
+                    p_allow = p_allow[:i * 2]
+                    p_load = p_load[:i * 2]
+                    depth = depth[:i * 2]
                 break
 
-        return [p_allow.to('Pa'), p_load.to('Pa'), sink_depth.to('m'), load.to('Pa')]
+        if sink_depth == -1.:
+            print('Soil bearing capacity insuficient, solution does not converge within :' + str(max_sink_depth))
 
-    def get_bearing_capacity_soil(self):
-        pass
+        return [p_allow.to('Pa'), p_load.to('Pa'), depth.to('m'), np.array([sink_depth.magnitude]) * ureg['m'],
+                np.array([load.magnitude]) * ureg['Pa']]
+
+    def solve_torque(self, depth, load):
+        self.bot.depth = depth.copy()
+        torque_req = self.bot.torque(load=load, layers=self.world.Layers)
+        return torque_req
 
     def determine_max_torque(self):
         pass
